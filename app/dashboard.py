@@ -62,12 +62,14 @@ def submit_run():
             submission_df = pd.read_csv(submission_file)
             if(list(submission_df.columns)!=['tweet_id','label']):
                 return Response(status=403, response=json.dumps({"message":'wrong columns'}), mimetype='application/json')
-            count = list(db.submissions.aggregate([
+            """count = list(db.submissions.aggregate([
                 {'$match': {"_id":team_name,'submissions': {'$elemMatch': {'task_name': task_name}}}}, {
-                '$project': {'submissions': {'$filter': {'input': '$submissions', 'as': 'submissions', 'cond': {'$eq': ['$$submissions.task_name', task_name]}}},}}]))
-            if(len(count)==0 or len(count[0]['submissions'])<5):
-                if(len(count)!=0 and len(count[0]['submissions'])>0):
-                    if(len(list(db.submissions.find({'_id':team_name,'submissions.task_name':task_name,'submissions.submission_name':submission_name})))>0):
+                '$project': {'submissions': {'$filter': {'input': '$submissions', 'as': 'submissions', 'cond': {'$eq': ['$$submissions.task_name', task_name]}}},}}]))"""
+            count = list(db.submissions.find({"team_name":team_name,"task_name":task_name}))
+            if(len(count)<5):
+                if(len(count)>0):
+                    print(len(list(db.submissions.find({'team_name':team_name,'task_name':task_name,'submission_name':submission_name}))))
+                    if(len(list(db.submissions.find({'team_name':team_name,'task_name':task_name,'submission_name':submission_name})))>0):
                         return Response(status=409,response=json.dumps({'message':"can't use same submission name for multiple submissions"}),mimetype='application/json')
                 submission_df = submission_df.astype({'tweet_id':str})
                 submission_json = submission_df.set_index('tweet_id').T.to_dict('list')
@@ -79,7 +81,7 @@ def submit_run():
                     recall = confusion_mat['TP'] / (confusion_mat['TP'] + confusion_mat['FN'])
                     f1_score = 2*((precision*recall)/(precision + recall))
                     accuracy = (confusion_mat['TP'] + confusion_mat['TN']) / sum(list(confusion_mat.values()))
-                    db.submissions.update_one({'_id':team_name},{'$push':{'submissions':{'task_name':task_name,'submission_name':submission_name,'description':description,'timestamp':datetime.utcnow(),'accuracy':accuracy,'f1_score':f1_score,'confusion':confusion_mat,'submission_labels':submission_json}}})
+                    db.submissions.insert_one({'team_name':team_name,'task_name':task_name,'submission_name':submission_name,'description':description,'timestamp':datetime.utcnow(),'accuracy':accuracy,'f1_score':f1_score,'confusion':confusion_mat,'submission_labels':submission_json})
                     return Response(status=200, response=json.dumps({'message':'submitted successfully'}),mimetype='application/json')
                 else:
                     return confusion_mat
@@ -101,24 +103,21 @@ def team_data(sort_order=None):
         if(request.method=='POST'):
             data = request.json
             team_name = data['team_name']
-            team_submissions = list(db.submissions.find({'_id':team_name},{"team_name":0,"password_hash":0,"email":0,"submissions.submission_labels":0,"_id":0}))
+            team_submissions = list(db.submissions.find({'team_name':team_name},{"team_name":0,"submission_labels":0,"_id":0}))
             if(len(team_submissions)==0):
-                return Response(status=401, response=json.dumps({'message':'invalid team-name'}),mimetype='application/json')
-            elif(len(team_submissions[0]['submissions'])==0):
                 return Response(status=404, response=json.dumps({'message':'No submissions found'}),mimetype='application/json')
             else:
-                submissions = team_submissions[0]['submissions']
                 if(sort_order=="timestamp_desc"):
-                    submissions.sort(key = lambda x:x['timestamp'],reverse=True)
+                    team_submissions.sort(key = lambda x:x['timestamp'],reverse=True)
                 elif(sort_order=="timestamp_asc"):
-                    submissions.sort(key = lambda x:x['timestamp'])
+                    team_submissions.sort(key = lambda x:x['timestamp'])
                 elif(sort_order=="f1_desc"):
-                    submissions.sort(key = lambda x:x['f1_score'],reverse=True)
+                    team_submissions.sort(key = lambda x:x['f1_score'],reverse=True)
                 elif(sort_order=="f1_asc"):
-                    submissions.sort(key = lambda x:x['f1_score'])
+                    team_submissions.sort(key = lambda x:x['f1_score'])
                 else:
                     return Response(status=401, response=json.dumps({'message':'invalid sorting parameters'}),mimetype='application/json')
-                return Response(status=200, response=json.dumps(submissions),mimetype='application/json')
+                return Response(status=200, response=json.dumps(team_submissions),mimetype='application/json')
         else:
             return Response(status=400, response=json.dumps({'message':'bad request'}),mimetype='application/json')
     except Exception as Ex:
