@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import os
 
 @app.route('/user/add_team', methods=['POST'])
+@cross_origin(origin='*',headers=['Content- Type','Authorization'])
 def add_team():
     try:
         if request.method == 'POST':
@@ -39,6 +40,7 @@ def add_team():
 
 
 @ app.route('/user/login', methods=['GET', 'POST'])
+@cross_origin(origin='*',headers=['Content- Type','Authorization'])
 def login():
     try:
         if request.method == 'POST':
@@ -70,6 +72,7 @@ def login():
 
 
 @ app.route('/user/change_password', methods=['POST'])
+@cross_origin(origin='*',headers=['Content- Type','Authorization'])
 def change_password():
     try:
         if request.method == 'POST':

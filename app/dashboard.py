@@ -1,4 +1,4 @@
-from app import app,db,bcrypt
+from app import app,db,bcrypt,token_required
 from flask import Flask, request, Response, redirect, url_for, json, make_response, jsonify
 import pymongo
 import jwt
@@ -48,6 +48,8 @@ def confusion_matrix(y_labels,submission_json):
         return Response(status=406, response=json.dumps({'message':'missinng tweet id or unknown id found'}),mimetype='application/json')
 
 @app.route('/dashboard/submission', methods=['POST'])
+@cross_origin(origin='*',headers=['Content- Type','Authorization'])
+@token_required
 def submit_run():
     try:
         if(request.method=='POST'):
@@ -91,8 +93,10 @@ def submit_run():
         print('*******************************')
         return str(Ex)
 
-@app.route('/dashboard/team_data', methods=['POST'])
-def team_data():
+@app.route('/dashboard/team_data/<sort_order>', methods=['POST'])
+@cross_origin(origin='*',headers=['Content- Type','Authorization'])
+@token_required
+def team_data(sort_order=None):
     try:
         if(request.method=='POST'):
             data = request.json
@@ -103,7 +107,18 @@ def team_data():
             elif(len(team_submissions[0]['submissions'])==0):
                 return Response(status=404, response=json.dumps({'message':'No submissions found'}),mimetype='application/json')
             else:
-                return Response(status=200, response=json.dumps(team_submissions[0]),mimetype='application/json')
+                submissions = team_submissions[0]['submissions']
+                if(sort_order=="timestamp_desc"):
+                    submissions.sort(key = lambda x:x['timestamp'],reverse=True)
+                elif(sort_order=="timestamp_asc"):
+                    submissions.sort(key = lambda x:x['timestamp'])
+                elif(sort_order=="f1_desc"):
+                    submissions.sort(key = lambda x:x['f1_score'],reverse=True)
+                elif(sort_order=="f1_asc"):
+                    submissions.sort(key = lambda x:x['f1_score'])
+                else:
+                    return Response(status=401, response=json.dumps({'message':'invalid sorting parameters'}),mimetype='application/json')
+                return Response(status=200, response=json.dumps(submissions),mimetype='application/json')
         else:
             return Response(status=400, response=json.dumps({'message':'bad request'}),mimetype='application/json')
     except Exception as Ex:
